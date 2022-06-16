@@ -35,18 +35,16 @@ class PhasedGRUCell(nn.Module):
         return torch.div(torch.fmod(timestamp - self.phase_shift, self.period), self.period)
 
     def _time_gate(self, timestamp):
-        open_ratio_t = self.open_ratio
-
         cycle_phase = self._cycle_phase(timestamp)
-        up_phase_value = 2 * cycle_phase / open_ratio_t
+        up_phase_value = 2 * cycle_phase / self.open_ratio
         down_phase_value = 2 - up_phase_value
         closed_phase_value = self._leak_rate() * cycle_phase
 
         result = torch.where(
-            cycle_phase < 0.5 * open_ratio_t,
+            cycle_phase < 0.5 * self.open_ratio,
             up_phase_value,
             torch.where(
-                cycle_phase < open_ratio_t,
+                cycle_phase < self.open_ratio,
                 down_phase_value,
                 closed_phase_value
             )
