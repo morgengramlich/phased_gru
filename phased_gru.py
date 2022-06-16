@@ -75,15 +75,15 @@ class PhasedGRU(nn.Module):
 
         top_states = []
         final_states = []
-        for i in range(values.shape[1]):
-            step_value = values.select(1, i)
-            step_timestamps = timestamps.select(1, i)
-            for j, cell in enumerate(self.cells):
-                h = cell(step_value, step_timestamps, state[j])
+        for seq_idx in range(values.shape[1]):
+            step_value = values.select(1, seq_idx)
+            step_timestamps = timestamps.select(1, seq_idx)
+            for layer_idx, cell in enumerate(self.cells):
+                h = cell(step_value, step_timestamps, state[layer_idx])
                 step_value = h
-                if j == self.num_layers - 1:
+                if layer_idx == self.num_layers - 1:
                     top_states.append(h)
-                if i == values.shape[1] - 1:
+                if seq_idx == values.shape[1] - 1:
                     final_states.append(h)
         output = torch.stack(top_states, dim=1)
         final_state = torch.stack(final_states, dim=0)
