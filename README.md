@@ -1,0 +1,1 @@
+PyTorch implementation of a phased gated recurrent unit (Phased GRU) based on Are Haartveit and Harald Husum work ["Learning event-driven time series with phased recurrent neural networks"](https://ntnuopen.ntnu.no/ntnu-xmlui/handle/11250/2615885).
