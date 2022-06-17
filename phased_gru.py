@@ -2,8 +2,9 @@
 
 import torch
 from torch import nn
+import torch.jit as jit
 
-class PhasedGRUCell(nn.Module):
+class PhasedGRUCell(jit.ScriptModule):
     '''Phased gated recurrent unit cell'''
 
     def __init__(self, input_size, hidden_size, leak_rate = 0.001):
@@ -19,6 +20,7 @@ class PhasedGRUCell(nn.Module):
         self.phase_shift = nn.parameter.Parameter(torch.randn(hidden_size, 1))
         self.leak_rate = leak_rate
 
+    @jit.script_method
     def forward(self, x, timestamp, hx = None):
         '''One step of computation'''
         if hx is None:
@@ -56,7 +58,7 @@ class PhasedGRUCell(nn.Module):
         return torch.zeros(1, self.hidden_size)
 
 
-class PhasedGRU(nn.Module):
+class PhasedGRU(jit.ScriptModule):
     '''Multi-layer phased gated recurrent unit'''
 
     def __init__(self, input_size, hidden_size, num_layers = 1, leak_rate = 0.001):
@@ -68,6 +70,7 @@ class PhasedGRU(nn.Module):
         for _ in range(num_layers - 1):
             self.cells.append(PhasedGRUCell(hidden_size, hidden_size, leak_rate))
 
+    @jit.script_method
     def forward(self, values, timestamps, state = None):
         '''One step of computation'''
         if state is None:
