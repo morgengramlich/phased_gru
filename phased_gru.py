@@ -7,7 +7,11 @@ import torch.jit as jit
 class PhasedGRUCell(jit.ScriptModule):
     '''Phased gated recurrent unit cell'''
 
-    def __init__(self, input_size, hidden_size, leak_rate = 0.001):
+    def __init__(self, input_size, hidden_size,
+                 leak_rate = 0.001,
+                 period_init_max = 3,
+                 open_ratio_init = 0.05,
+                ):
         super(PhasedGRUCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -15,10 +19,33 @@ class PhasedGRUCell(jit.ScriptModule):
             input_size=self.input_size,
             hidden_size=self.hidden_size,
         )
-        self.period = nn.parameter.Parameter(torch.randn(hidden_size, 1))
-        self.open_ratio = nn.parameter.Parameter(torch.randn(hidden_size, 1))
-        self.phase_shift = nn.parameter.Parameter(torch.randn(hidden_size, 1))
+        self.period_init_max = period_init_max
+        self.open_ratio_init = open_ratio_init
+        self.period = nn.parameter.Parameter(
+            data=torch.Tensor(hidden_size, 1),
+            requires_grad=True
+        )
+        self.open_ratio = nn.parameter.Parameter(
+            data=torch.Tensor(hidden_size, 1),
+            requires_grad=True
+        )
+        self.phase_shift = nn.parameter.Parameter(
+            data=torch.Tensor(hidden_size, 1),
+            requires_grad=True
+        )
         self.leak_rate = leak_rate
+        self._init_params()
+
+    def _init_params(self):
+        self.period.data.copy_(
+            torch.exp(
+                torch.Tensor(self.period.shape).uniform_(1, self.period_init_max)
+            )
+        )
+        self.phase_shift.data.copy_(
+            torch.Tensor(self.phase_shift.shape).uniform_() * self.period.data
+        )
+        nn.init.constant_(self.open_ratio, self.open_ratio_init)
 
     @jit.script_method
     def forward(self, x, timestamp, hx = None):
@@ -33,9 +60,11 @@ class PhasedGRUCell(jit.ScriptModule):
     def _leak_rate(self):
         return self.leak_rate if self.training else 0.0
 
+    @jit.script_method
     def _cycle_phase(self, timestamp):
         return torch.div(torch.fmod(timestamp - self.phase_shift, self.period), self.period)
 
+    @jit.script_method
     def _time_gate(self, timestamp):
         cycle_phase = self._cycle_phase(timestamp)
         up_phase_value = 2 * cycle_phase / self.open_ratio
