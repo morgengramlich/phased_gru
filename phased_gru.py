@@ -90,16 +90,23 @@ class PhasedGRUCell(jit.ScriptModule):
 class PhasedGRU(jit.ScriptModule):
     '''Multi-layer phased gated recurrent unit'''
 
-    def __init__(self, input_size, hidden_size, num_layers = 1, leak_rate = 0.001):
+    def __init__(self, input_size, hidden_size,
+                 num_layers = 1,
+                 leak_rate = 0.001,
+                 dropout = 0.0,
+                ):
         super(PhasedGRU, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.dropout = dropout
         self.cells = nn.ModuleList([PhasedGRUCell(input_size, hidden_size, leak_rate)])
+        self.dropouts = nn.ModuleList([])
         for _ in range(num_layers - 1):
+            if dropout > 0.0:
+                self.dropouts.append(nn.Dropout(p=dropout))
             self.cells.append(PhasedGRUCell(hidden_size, hidden_size, leak_rate))
 
-    @jit.script_method
     def forward(self, values, timestamps, state = None):
         '''One step of computation'''
         if state is None:
@@ -113,6 +120,8 @@ class PhasedGRU(jit.ScriptModule):
             for layer_idx, cell in enumerate(self.cells):
                 h = cell(step_value, step_timestamps, state[layer_idx])
                 step_value = h
+                if self.dropout > 0.0 and layer_idx != self.num_layers - 1:
+                    step_value = self.dropouts[layer_idx](step_value)
                 if layer_idx == self.num_layers - 1:
                     top_states.append(h)
                 if seq_idx == values.shape[1] - 1:
